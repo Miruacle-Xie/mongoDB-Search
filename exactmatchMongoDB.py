@@ -5,6 +5,7 @@ import sys
 import time
 import pymongo
 import threading
+import webbrowser
 import pandas as pd
 import plotly.offline
 import plotly.graph_objects as go
@@ -84,8 +85,8 @@ def findresult(usedb, collectionNames, searchQuery, limitNum=1):
             # xfind = tmpcol.find(searchQuery, {"_id": 0, "部门": 0}).sort([("搜索频率排名", 1)])
             xfind = tmpcol.find(searchQuery, {"_id": 0, "部门": 0})
         else:
-            # xfind = tmpcol.find(searchQuery, {"_id": 0, "部门": 0}).sort([("搜索频率排名", 1)]).limit(limitNum)
-            xfind = tmpcol.find(searchQuery, {"_id": 0, "部门": 0}).limit(limitNum)
+            xfind = tmpcol.find(searchQuery, {"_id": 0, "部门": 0}).sort([("搜索频率排名", 1)]).limit(limitNum)
+            # xfind = tmpcol.find(searchQuery, {"_id": 0, "部门": 0}).limit(limitNum)
         # print(type(xfind))
         # print(xfind)
         if DEBUG:
@@ -130,9 +131,14 @@ def plotlytrace(data, filename, auto_open=False):
     fig.update_layout({'title': data["搜索词"][1]+"平均排名: {:.2f}".format(averagenum)})
     # print(filename + ".html")
     if filename != "":
-        plotly.offline.plot(fig, filename=filename + ".html", auto_open=auto_open)
+        filename = filename + ".html"
+        plotly.offline.plot(fig, filename=filename + ".html", auto_open=False)
     else:
-        plotly.offline.plot(fig, auto_open=auto_open)
+        plotly.offline.plot(fig, auto_open=False)
+        filename = os.getcwd() + "\\" + "temp-plot.html"
+        # input(filename)
+    if auto_open:
+        webbrowser.open(filename)
 
 
 def findallcollections(mydb, myquery, limitNum, fileName="", customlist=[], threadNum=5, savexlsx=False, auto_openhtml=False):
