@@ -118,18 +118,24 @@ def findresult(usedb, collectionNames, searchQuery, limitNum=1):
     return df
 
 
-def gtrendplotly(data, filename, auto_open=False):
+def plotlytrace(data, filename, auto_open=False):
     # print(data)
+    # validnum = len(data) - data["#1 已点击的 ASIN"].isnull().sum()
+    averagenum = data["搜索频率排名"].sum() / len(data)
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data["week"], y=data["搜索频率排名"], text=data["搜索频率排名"], mode="markers+lines+text", name="排名"))
+    fig.add_trace(go.Scatter(x=data["week"], y=data["搜索频率排名"], text=data["搜索频率排名"], mode="markers+lines+text", name="每周排名"))
+    fig.add_trace(go.Scatter(x=data["week"], y=[averagenum for i in range(len(data))], mode="markers+lines", name="平均"))
     # fig.update_layout({'title': data["搜索词"]}, yaxis_range=[0, 100])
-    fig.update_traces(textposition='top center')
-    fig.update_layout({'title': data["搜索词"][1]})
-    plotly.offline.plot(fig, filename=filename + ".html", auto_open=auto_open)
-    # plotly.offline.plot(fig, auto_open=auto_open)
+    # fig.update_traces(textposition='top center')
+    fig.update_layout({'title': data["搜索词"][1]+"平均排名: {:.2f}".format(averagenum)})
+    # print(filename + ".html")
+    if filename != "":
+        plotly.offline.plot(fig, filename=filename + ".html", auto_open=auto_open)
+    else:
+        plotly.offline.plot(fig, auto_open=auto_open)
 
 
-def findallcollections(mydb, myquery, limitNum, fileName, customlist=[], threadNum=5, savexlsx=False, auto_openhtml=False):
+def findallcollections(mydb, myquery, limitNum, fileName="", customlist=[], threadNum=5, savexlsx=False, auto_openhtml=False):
     df = pd.DataFrame(
         columns=["搜索词", "搜索频率排名", "#1 已点击的 ASIN", "#1 商品名称", "#1 点击共享", "#1 转化共享", "#2 已点击的 ASIN", "#2 商品名称", "#2 点击共享",
                  "#2 转化共享", "#3 已点击的 ASIN", "#3 商品名称", "#3 点击共享", "#3 转化共享"])
@@ -173,7 +179,7 @@ def findallcollections(mydb, myquery, limitNum, fileName, customlist=[], threadN
         df.sort_values(by=["搜索词", "week", "搜索频率排名"], inplace=True)
         df.reset_index(drop=True, inplace=True)
         df.to_excel("{}.xlsx".format(fileName), index=None)
-    gtrendplotly(df, fileName, auto_openhtml)
+    plotlytrace(df, fileName, auto_openhtml)
     gc.collect()
     return len(df) - df["#1 已点击的 ASIN"].isnull().sum()
 
@@ -222,15 +228,13 @@ def mode2():
 
 def mode1():
     exec_path = os.path.splitext(sys.executable)
-    # input(exec_path)
-    resultpath = exec_path[0] + "临时文件" + "\\"
-    # input(resultpath)
-    if not os.path.isdir(resultpath):
-        os.mkdir(resultpath)
+    # resultpath = exec_path[0] + "临时文件" + "\\"
+    # if not os.path.isdir(resultpath):
+    #     os.mkdir(resultpath)
     myclient = connectMongoDB(MongoDBargs)
     mydb = switchDB(myclient, "ABAweekly")
     while True:
-        search_word = input("输入要搜索的词组，按回车查询；退出请直接关闭软件或输入quit\n")
+        search_word = input("输入要搜索的词组，按回车查询；退出请输入quit\n")
         search_word = search_word.lower()
         if search_word == "quit":
             print("退出...")
@@ -240,8 +244,8 @@ def mode1():
             if search_word == "":
                 continue
             myquery = {"搜索词": search_word}
-            findallcollections(mydb, myquery=myquery, limitNum=1, fileName=resultpath + myquery["搜索词"],
-                                        threadNum=5, auto_openhtml=True)
+            findallcollections(mydb, myquery=myquery, limitNum=1, threadNum=5, auto_openhtml=True)
+            # findallcollections(mydb, myquery=myquery, limitNum=1, fileName=resultpath+search_word, threadNum=5, auto_openhtml=True)
         else:
             print("含有非法字符：\\/:*?\"<>|")
 
