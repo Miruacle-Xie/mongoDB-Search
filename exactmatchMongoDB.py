@@ -108,7 +108,7 @@ def findresult(usedb, collectionNames, searchQuery, limitNum=1):
             if DEBUG:
                 print("3-加入df耗时: {}s".format(time.time() - time_tmp))
         else:
-            tmpresult = {"week": collectionName[:6], "搜索词": searchQuery["搜索词"], "搜索频率排名": 1000000}
+            tmpresult = {"week": collectionName[:6], "搜索词": str(searchQuery["搜索词"]) if type(searchQuery["搜索词"]) != type("string") else searchQuery["搜索词"], "搜索频率排名": 1000000}
             df = df.append(tmpresult, ignore_index=True)
             tmpresult = {}
         if DEBUG:
@@ -132,7 +132,7 @@ def plotlytrace(data, filename, auto_open=False):
     # print(filename + ".html")
     if filename != "":
         filename = filename + ".html"
-        plotly.offline.plot(fig, filename=filename + ".html", auto_open=False)
+        plotly.offline.plot(fig, filename=filename, auto_open=False)
     else:
         plotly.offline.plot(fig, auto_open=False)
         filename = os.getcwd() + "\\" + "temp-plot.html"
@@ -185,7 +185,8 @@ def findallcollections(mydb, myquery, limitNum, fileName="", customlist=[], thre
         df.sort_values(by=["搜索词", "week", "搜索频率排名"], inplace=True)
         df.reset_index(drop=True, inplace=True)
         df.to_excel("{}.xlsx".format(fileName), index=None)
-    plotlytrace(df, fileName, auto_openhtml)
+    if limitNum == 1:
+        plotlytrace(df, fileName, auto_openhtml)
     gc.collect()
     return len(df) - df["#1 已点击的 ASIN"].isnull().sum()
 
@@ -218,12 +219,28 @@ def mode2():
     resultpath = os.path.dirname(filepath) + "\\" + os.path.splitext(os.path.basename(filepath))[0] + "-报告" + "\\"
     if not os.path.isdir(resultpath):
         os.mkdir(resultpath)
-    search_word = pd.read_excel(filepath, header=None)
-    search_word = search_word.iloc[:, 0].tolist()
+    # search_word = pd.read_excel(filepath, header=None)
+    df = pd.read_excel(filepath)
+    df.fillna('$null', inplace=True)
+    search_word = df.iloc[:, 0].tolist()
+    file_name = df.iloc[:, 1].tolist()
+    # print(file_name)
+    # print(search_word)
     myclient = connectMongoDB(MongoDBargs)
     mydb = switchDB(myclient, "ABAweekly")
     resultset = []
-    for word in search_word:
+    for word, filename, cnt in zip(search_word, file_name, range(1, len(file_name)+1)):
+        if re.findall("{.*}", word):
+            # print(type(word))
+            word = eval(word)
+            # input(type(word))
+        if filename != '$null':
+            if re.findall(r"^[^\\/:*?\"<>|]*$", filename):
+                pass
+            else:
+                filename = str(cnt)
+        else:
+            filename = str(cnt)
         myquery = {"搜索词": word}
         result = findallcollections(mydb, myquery=myquery, limitNum=limit_num, fileName=resultpath + myquery["搜索词"],
                                     threadNum=thread_num, savexlsx=True)
@@ -286,12 +303,4 @@ if __name__ == "__main__":
         if args[1].lower() == "debug":
             DEBUG = True
     main()
-    # test = []
-    # for i in range(2):
-    #     test.append((i, i+1))
-    # df = pd.DataFrame(test)
-    # print(df)
-    # df = pd.read_excel(r"F:\JetBrains\officeTools\abaMongoDB\1-报告\its corn socks.xlsx")
-    # print(df)
-    # print(len(df))
-    # print(df["#1 已点击的 ASIN"].isnull().sum())
+
