@@ -46,7 +46,9 @@ class myThread(threading.Thread):
 def connectMongoDB(MongoDBargs):
     # connect MongoDB
     try:
-        myclient = pymongo.MongoClient(host=MongoDBargs['MongoDBhost'], port=MongoDBargs['MongoDBport'], authSource=MongoDBargs['MongoDBdatabase'], username=MongoDBargs['MongoDBusername'], password=MongoDBargs['MongoDBpassword'])
+        myclient = pymongo.MongoClient(host=MongoDBargs['MongoDBhost'], port=MongoDBargs['MongoDBport'],
+                                       authSource=MongoDBargs['MongoDBdatabase'],
+                                       username=MongoDBargs['MongoDBusername'], password=MongoDBargs['MongoDBpassword'])
         print("连接服务器成功")
         return myclient
     except Exception as e:
@@ -67,7 +69,8 @@ def switchDB(mongoClient, dbName):
 
 def findresult(usedb, collectionNames, searchQuery, limitNum=1):
     df = pd.DataFrame(
-        columns=["搜索词", "搜索频率排名", "#1 已点击的 ASIN", "#1 商品名称", "#1 点击共享", "#1 转化共享", "#2 已点击的 ASIN", "#2 商品名称", "#2 点击共享",
+        columns=["搜索词", "搜索频率排名", "#1 已点击的 ASIN", "#1 商品名称", "#1 点击共享", "#1 转化共享",
+                 "#2 已点击的 ASIN", "#2 商品名称", "#2 点击共享",
                  "#2 转化共享", "#3 已点击的 ASIN", "#3 商品名称", "#3 点击共享", "#3 转化共享"])
     if DEBUG:
         time_start = time.time()
@@ -108,7 +111,13 @@ def findresult(usedb, collectionNames, searchQuery, limitNum=1):
             if DEBUG:
                 print("3-加入df耗时: {}s".format(time.time() - time_tmp))
         else:
-            tmpresult = {"week": collectionName[:6], "搜索词": str(searchQuery["搜索词"]) if type(searchQuery["搜索词"]) != type("string") else searchQuery["搜索词"], "搜索频率排名": 1000000}
+            if "搜索词" in searchQuery.keys():
+                tmpresult = {"week": collectionName[:6],
+                             "搜索词": str(searchQuery["搜索词"]) if not isinstance(searchQuery["搜索词"], str) else
+                             searchQuery["搜索词"], "搜索频率排名": 1000000}
+            else:
+                tmpresult = {"week": collectionName[:6],
+                             "搜索词": str(searchQuery), "搜索频率排名": 1000000}
             df = df.append(tmpresult, ignore_index=True)
             tmpresult = {}
         if DEBUG:
@@ -120,30 +129,33 @@ def findresult(usedb, collectionNames, searchQuery, limitNum=1):
 
 
 def plotlytrace(data, filename, auto_open=False):
-    # print(data)
-    # validnum = len(data) - data["#1 已点击的 ASIN"].isnull().sum()
     averagenum = data["搜索频率排名"].sum() / len(data)
+    ranknum = len(data) - data["#1 已点击的 ASIN"].isnull().sum()
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data["week"], y=data["搜索频率排名"], text=data["搜索频率排名"], mode="markers+lines+text", name="每周排名"))
-    fig.add_trace(go.Scatter(x=data["week"], y=[averagenum for i in range(len(data))], mode="markers+lines", name="平均"))
-    # fig.update_layout({'title': data["搜索词"]}, yaxis_range=[0, 100])
-    # fig.update_traces(textposition='top center')
-    fig.update_layout({'title': data["搜索词"][1]+"平均排名: {:.2f}".format(averagenum)})
-    # print(filename + ".html")
+    fig.add_trace(
+        go.Scatter(x=data["week"], y=data["搜索频率排名"],
+                   hovertext=data["week"].astype("string") + ": " + data["搜索频率排名"].astype("string"),
+                   text=data["搜索频率排名"], mode="markers+lines+text",
+                   name="每周排名", textposition="top center"))
+    fig.add_trace(
+        go.Scatter(x=data["week"], y=[averagenum for i in range(len(data))], mode="lines",
+                   line=dict(dash="longdashdot", width=3), name="平均"))
+    fig.update_layout({'title': data["搜索词"][1] + "平均排名: {:.2f}, 在榜周数: {}".format(averagenum, ranknum)})
     if filename != "":
         filename = filename + ".html"
         plotly.offline.plot(fig, filename=filename, auto_open=False)
     else:
         plotly.offline.plot(fig, auto_open=False)
         filename = os.getcwd() + "\\" + "temp-plot.html"
-        # input(filename)
     if auto_open:
         webbrowser.open(filename)
 
 
-def findallcollections(mydb, myquery, limitNum, fileName="", customlist=[], threadNum=5, savexlsx=False, auto_openhtml=False):
+def findallcollections(mydb, myquery, limitNum, fileName="", customlist=[], threadNum=5, savexlsx=False,
+                       auto_openhtml=False):
     df = pd.DataFrame(
-        columns=["搜索词", "搜索频率排名", "#1 已点击的 ASIN", "#1 商品名称", "#1 点击共享", "#1 转化共享", "#2 已点击的 ASIN", "#2 商品名称", "#2 点击共享",
+        columns=["搜索词", "搜索频率排名", "#1 已点击的 ASIN", "#1 商品名称", "#1 点击共享", "#1 转化共享",
+                 "#2 已点击的 ASIN", "#2 商品名称", "#2 点击共享",
                  "#2 转化共享", "#3 已点击的 ASIN", "#3 商品名称", "#3 点击共享", "#3 转化共享"])
 
     collist = mydb.list_collection_names()
@@ -158,9 +170,13 @@ def findallcollections(mydb, myquery, limitNum, fileName="", customlist=[], thre
     time_start = time.time()
     cnt = len(collist) // threadNum
     cnt = cnt + 1 if (len(collist) % threadNum) != 0 else 0
-    threads = [myThread(i+1, "Thread-"+str(i+1), findresult, (mydb, collist[cnt*i:cnt*(1+i)], myquery, limitNum)) if i != (threadNum-1) else myThread(i, "Thread-"+str(i), findresult, (mydb, collist[cnt*i:], myquery, limitNum)) for i in range(threadNum)]
+    threads = [myThread(i + 1, "Thread-" + str(i + 1), findresult,
+                        (mydb, collist[cnt * i:cnt * (1 + i)], myquery, limitNum)) if i != (
+            threadNum - 1) else myThread(i, "Thread-" + str(i), findresult,
+                                         (mydb, collist[cnt * i:], myquery, limitNum)) for i in range(threadNum)]
 
     # 开启新线程
+    print("正在查询请稍等...")
     for t in threads:
         t.start()
 
@@ -219,7 +235,6 @@ def mode2():
     resultpath = os.path.dirname(filepath) + "\\" + os.path.splitext(os.path.basename(filepath))[0] + "-报告" + "\\"
     if not os.path.isdir(resultpath):
         os.mkdir(resultpath)
-    # search_word = pd.read_excel(filepath, header=None)
     df = pd.read_excel(filepath)
     df.fillna('$null', inplace=True)
     search_word = df.iloc[:, 0].tolist()
@@ -228,12 +243,11 @@ def mode2():
     # print(search_word)
     myclient = connectMongoDB(MongoDBargs)
     mydb = switchDB(myclient, "ABAweekly")
+    time_start = time.time()
     resultset = []
-    for word, filename, cnt in zip(search_word, file_name, range(1, len(file_name)+1)):
+    for word, filename, cnt in zip(search_word, file_name, range(1, len(file_name) + 1)):
         if re.findall("{.*}", word):
-            # print(type(word))
             word = eval(word)
-            # input(type(word))
         if filename != '$null':
             if re.findall(r"^[^\\/:*?\"<>|]*$", filename):
                 pass
@@ -242,33 +256,41 @@ def mode2():
         else:
             filename = str(cnt)
         myquery = {"搜索词": word}
-        result = findallcollections(mydb, myquery=myquery, limitNum=limit_num, fileName=resultpath + myquery["搜索词"],
+        result = findallcollections(mydb, myquery=myquery, limitNum=limit_num, fileName=resultpath + filename,
                                     threadNum=thread_num, savexlsx=True)
         resultset.append((word, result))
     resultset = pd.DataFrame(resultset, columns=["搜索词", "在周榜次数"])
-    resultset.to_excel(resultpath+os.path.splitext(os.path.basename(filepath))[0]+"-汇总报告.xlsx", index=None)
+    resultset.to_excel(resultpath + os.path.splitext(os.path.basename(filepath))[0] + "-汇总报告.xlsx", index=None)
+    time_end = time.time()
+    input("已生成报告, 耗时时间:{:.2f}, 平均耗时:{:.2f}, 按回车键结束".format(time_end - time_start,
+                                                                              (time_end - time_start) / len(df)))
 
 
 def mode1():
     exec_path = os.path.splitext(sys.executable)
-    # resultpath = exec_path[0] + "临时文件" + "\\"
-    # if not os.path.isdir(resultpath):
-    #     os.mkdir(resultpath)
+    resultpath = exec_path[0] + " datafileABA" + "\\"
+    if not os.path.isdir(resultpath):
+        os.mkdir(resultpath)
     myclient = connectMongoDB(MongoDBargs)
     mydb = switchDB(myclient, "ABAweekly")
     while True:
-        search_word = input("输入要搜索的词组，按回车查询；退出请输入quit\n")
+        search_word = input("输入要搜索的词组，按回车查询；退出请输入$q\n")
         search_word = search_word.lower()
-        if search_word == "quit":
+        if search_word == "$q":
             print("退出...")
             break
-        # for tmp in ["?",",","╲","/","*",'"',"<",">","|"]:
         if re.findall(r"^[^\\/:*?\"<>|]*$", search_word):
             if search_word == "":
                 continue
             myquery = {"搜索词": search_word}
-            findallcollections(mydb, myquery=myquery, limitNum=1, threadNum=5, auto_openhtml=True)
-            # findallcollections(mydb, myquery=myquery, limitNum=1, fileName=resultpath+search_word, threadNum=5, auto_openhtml=True)
+            filename = resultpath + search_word
+            findallcollections(mydb, myquery=myquery, limitNum=1, fileName=filename, threadNum=5, auto_openhtml=True)
+        elif re.findall("{.*}", search_word) and isinstance(search_word, str):
+            search_word = eval(search_word)
+            myquery = search_word
+            filename = resultpath + "temp-plot1"
+            findallcollections(mydb, myquery=myquery, limitNum="all", fileName=filename, threadNum=5, savexlsx=True,
+                               auto_openhtml=True)
         else:
             print("含有非法字符：\\/:*?\"<>|")
 
