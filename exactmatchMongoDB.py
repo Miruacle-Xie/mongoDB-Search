@@ -267,6 +267,16 @@ def mode2():
 
 
 def mode1():
+    thread_num = input("输入线程数(回车默认线程为5):")
+    if thread_num == "":
+        thread_num = 5
+        print("默认5")
+    else:
+        thread_num = eval(thread_num)
+        if not isinstance(thread_num, int):
+            print("输入错误, 大侠请重新来过：）")
+        else:
+            print("设置线程数量为{}".format(thread_num))
     exec_path = os.path.splitext(sys.executable)
     resultpath = exec_path[0] + " datafileABA" + "\\"
     if not os.path.isdir(resultpath):
