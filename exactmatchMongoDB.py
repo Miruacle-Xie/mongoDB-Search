@@ -15,12 +15,17 @@ from datetime import datetime
 DEBUG = False
 # threadLock = threading.Lock()
 MongoDBargs = {
-    'MongoDBhost': "localhost",
+    'MongoDBhost': "58.22.71.130",
     'MongoDBport': 27017,
-    'MongoDBusername': "***",
-    'MongoDBpassword': "***",
-    'MongoDBdatabase': "***"
+    'MongoDBusername': "aba_r",
+    'MongoDBpassword': "aba_r",
+    'MongoDBdatabase': "ABAweekly"
 }
+
+
+# df = pd.DataFrame(
+#     columns=["搜索词", "搜索频率排名", "#1 已点击的 ASIN", "#1 商品名称", "#1 点击共享", "#1 转化共享", "#2 已点击的 ASIN", "#2 商品名称", "#2 点击共享",
+#              "#2 转化共享", "#3 已点击的 ASIN", "#3 商品名称", "#3 点击共享", "#3 转化共享"])
 
 
 class myThread(threading.Thread):
@@ -85,6 +90,7 @@ def findresult(usedb, collectionNames, searchQuery, limitNum=1):
         if limitNum == 'all':
             if DEBUG:
                 print('find-all')
+            # print(searchQuery)
             # xfind = tmpcol.find(searchQuery, {"_id": 0, "部门": 0}).sort([("搜索频率排名", 1)])
             xfind = tmpcol.find(searchQuery, {"_id": 0, "部门": 0})
         else:
@@ -129,6 +135,8 @@ def findresult(usedb, collectionNames, searchQuery, limitNum=1):
 
 
 def plotlytrace(data, filename, auto_open=False):
+    # print(data)
+    # validnum = len(data) - data["#1 已点击的 ASIN"].isnull().sum()
     averagenum = data["搜索频率排名"].sum() / len(data)
     ranknum = len(data) - data["#1 已点击的 ASIN"].isnull().sum()
     fig = go.Figure()
@@ -140,13 +148,17 @@ def plotlytrace(data, filename, auto_open=False):
     fig.add_trace(
         go.Scatter(x=data["week"], y=[averagenum for i in range(len(data))], mode="lines",
                    line=dict(dash="longdashdot", width=3), name="平均"))
+    # fig.update_layout({'title': data["搜索词"]}, yaxis_range=[0, 100])
+    # fig.update_traces(textposition='top center')
     fig.update_layout({'title': data["搜索词"][1] + "平均排名: {:.2f}, 在榜周数: {}".format(averagenum, ranknum)})
+    # print(filename + ".html")
     if filename != "":
         filename = filename + ".html"
         plotly.offline.plot(fig, filename=filename, auto_open=False)
     else:
         plotly.offline.plot(fig, auto_open=False)
         filename = os.getcwd() + "\\" + "temp-plot.html"
+        # input(filename)
     if auto_open:
         webbrowser.open(filename)
 
@@ -168,6 +180,10 @@ def findallcollections(mydb, myquery, limitNum, fileName="", customlist=[], thre
 
     # 创建新线程
     time_start = time.time()
+    # thread1 = myThread(1, "Thread-1", findresult, (mydb, ["211128-211204"], myquery))
+    # thread2 = myThread(2, "Thread-2", findresult, (mydb, ["211205-211211"], myquery))
+    # thread1 = myThread(1, "Thread-1", findresult, (mydb, collist[:len(collist)//2], myquery))
+    # thread2 = myThread(2, "Thread-2", findresult, (mydb, collist[len(collist)//2:], myquery))
     cnt = len(collist) // threadNum
     cnt = cnt + 1 if (len(collist) % threadNum) != 0 else 0
     threads = [myThread(i + 1, "Thread-" + str(i + 1), findresult,
@@ -197,14 +213,16 @@ def findallcollections(mydb, myquery, limitNum, fileName="", customlist=[], thre
     df = df[[columns[-1], *columns[:-1]]]
     if DEBUG:
         print(df)
+    # df.to_excel("exact-{}.xlsx".format(myquery['搜索词']), index=None)
     if savexlsx:
+        # df.to_excel("{}.xlsx".format(fileName), index=None)
         df.sort_values(by=["搜索词", "week", "搜索频率排名"], inplace=True)
         df.reset_index(drop=True, inplace=True)
         df.to_excel("{}.xlsx".format(fileName), index=None)
     if limitNum == 1:
         plotlytrace(df, fileName, auto_openhtml)
     gc.collect()
-    return len(df) - df["#1 已点击的 ASIN"].isnull().sum()
+    return len(df) - df["#1 已点击的 ASIN"].isnull().sum(), df["搜索频率排名"].sum() / len(df)
 
 
 def mode2():
@@ -233,8 +251,10 @@ def mode2():
     filepath = input("文件路径:\n")
     filepath = filepath.replace("\"", "")
     resultpath = os.path.dirname(filepath) + "\\" + os.path.splitext(os.path.basename(filepath))[0] + "-报告" + "\\"
+    # input(resultpath)
     if not os.path.isdir(resultpath):
         os.mkdir(resultpath)
+    # search_word = pd.read_excel(filepath, header=None)
     df = pd.read_excel(filepath)
     df.fillna('$null', inplace=True)
     search_word = df.iloc[:, 0].tolist()
@@ -247,7 +267,9 @@ def mode2():
     resultset = []
     for word, filename, cnt in zip(search_word, file_name, range(1, len(file_name) + 1)):
         if re.findall("{.*}", word):
+            # print(type(word))
             word = eval(word)
+            # input(type(word))
         if filename != '$null':
             if re.findall(r"^[^\\/:*?\"<>|]*$", filename):
                 pass
@@ -256,14 +278,21 @@ def mode2():
         else:
             filename = str(cnt)
         myquery = {"搜索词": word}
+        # input(myquery)
+        # input(myquery["搜索词"])
+        # input(type(myquery["搜索词"]))
         result = findallcollections(mydb, myquery=myquery, limitNum=limit_num, fileName=resultpath + filename,
                                     threadNum=thread_num, savexlsx=True)
-        resultset.append((word, result))
-    resultset = pd.DataFrame(resultset, columns=["搜索词", "在周榜次数"])
+        # resultset.append((word, result,resultpath+myquery["搜索词"]+".xlsx"))
+        resultset.append((word, result[0], result[1]))
+    # resultset = pd.DataFrame(resultset, columns=["搜索词", "在周榜次数", "文件路径"])
+    resultset = pd.DataFrame(resultset, columns=["搜索词", "在周榜次数", "ABA平均排名"])
     resultset.to_excel(resultpath + os.path.splitext(os.path.basename(filepath))[0] + "-汇总报告.xlsx", index=None)
     time_end = time.time()
     input("已生成报告, 耗时时间:{:.2f}, 平均耗时:{:.2f}, 按回车键结束".format(time_end - time_start,
                                                                               (time_end - time_start) / len(df)))
+    # myquery = {"搜索词": {"$regex": "embroid.* hat"}}
+    # findallcollections(mydb, myquery=myquery, limitNum=1 if modeselet == 'one' else modeselet, fileName="1", customlist=["211128-211204"], threadNum=thread_num)
 
 
 def mode1():
@@ -285,17 +314,20 @@ def mode1():
     mydb = switchDB(myclient, "ABAweekly")
     while True:
         search_word = input("输入要搜索的词组，按回车查询；退出请输入$q\n")
-        search_word = search_word.lower()
-        if search_word == "$q":
+        # search_word = search_word.lower()
+        if search_word.lower() == "$q":
             print("退出...")
             break
+        # for tmp in ["?",",","╲","/","*",'"',"<",">","|"]:
         if re.findall(r"^[^\\/:*?\"<>|]*$", search_word):
             if search_word == "":
                 continue
+            search_word = search_word.lower()
             myquery = {"搜索词": search_word}
             filename = resultpath + search_word
-            findallcollections(mydb, myquery=myquery, limitNum=1, fileName=filename, threadNum=5, auto_openhtml=True)
+            findallcollections(mydb, myquery=myquery, limitNum=1, fileName=filename, threadNum=thread_num, auto_openhtml=True)
         elif re.findall("{.*}", search_word) and isinstance(search_word, str):
+            # print(type(word))
             search_word = eval(search_word)
             myquery = search_word
             filename = resultpath + "temp-plot1"
@@ -335,4 +367,17 @@ if __name__ == "__main__":
         if args[1].lower() == "debug":
             DEBUG = True
     main()
+    # test = []
+    # for i in range(2):
+    #     test.append((i, i+1))
+    # df = pd.DataFrame(test)
+    # print(df)
+    # df = pd.read_excel(r"F:\JetBrains\officeTools\abaMongoDB\1-报告\its corn socks.xlsx")
+    # print(df["week"][0])
+    # validnum = len(df) - df["#1 已点击的 ASIN"].isnull().sum()
+    # print(df["搜索频率排名"].sum()/len(df))
 
+    # print(df)
+    # print(len(df))
+    # print(df["#1 已点击的 ASIN"].isnull().sum())
+    # plotly.offline.plot(fig, filename=filename + ".html", auto_open=auto_open)
